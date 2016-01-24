@@ -28,15 +28,16 @@ class BlenderSWCImporter:
 
         swcPointData = {}
         extraCol = {}
-
+        rootInds = []
 
         with open(self.swcFName, 'r') as fle:
             line = fle.readline()
             while not line == '':
 
                 if not line[0] == '#':
-                    entries = line.split(' ')
-                    swcPointData[float(entries[0])] = [float(x) for x in entries[2:7]]
+                    entries = line.split()
+                    swcPointData[int(entries[0])] = [float(x) for x in entries[2:7]]
+                    rootInds.append(int(entries[0]))
 
                     if len(entries) > 7:
                         nCols = len(self.colMap)
@@ -44,7 +45,7 @@ class BlenderSWCImporter:
 
                 line = fle.readline()
 
-        return swcPointData, extraCol
+        return swcPointData, extraCol, rootInds
 
     #*******************************************************************************************************************
 
@@ -63,7 +64,7 @@ class BlenderSWCImporter:
 
         if swcData is None:
 
-            self.swcPointData, self.extraCol = self.readSWC()
+            self.swcPointData, self.extraCol, self.rootInds = self.readSWC()
 
         else:
 
@@ -80,8 +81,9 @@ class BlenderSWCImporter:
                 for ind, extraCol in zip(swcData[:, 0], temp):
                     self.extraCol[ind] = extraCol
 
+            self.rootInds = swcData[:, 0].tolist()
 
-
+        # print(self.rootInds)
         self.nCirclePoints = 8
         assert self.nCirclePoints % 2 == 0, 'No of points on the circle circumference has to be even'
 
@@ -201,9 +203,9 @@ class BlenderSWCImporter:
         :return:
         """
 
-        self.swcPointDone[swcPointInd - 1] = True
+        self.swcPointDone[self.rootInds.index(swcPointInd)] = True
         self.vertIndexStartsPerPoint.append(self.nBlenderCircles * self.nCirclePoints)
-        self.blenderCircleIndsPerSWCPoint[swcPointInd - 1].append(self.nBlenderCircles)
+        self.blenderCircleIndsPerSWCPoint[self.rootInds.index(swcPointInd)].append(self.nBlenderCircles)
         self.verts.extend(verts)
         self.normals.append(normal)
         self.refVecsInPlane.append(refVecInPlane)
@@ -333,6 +335,7 @@ class BlenderSWCImporter:
         rootVec = (Vector(rootData[:3]) - self.originPoint) / self.scaleDownBy
         rootDiam = rootData[3] / self.scaleDownBy
 
+
         if pointVec == rootVec:
                 print('Warning: Points at line ' + str(pointInd) + 'and line ' + str(rootInd) +
                               'have the same XYZ Coordinates in file ' + self.swcName)
@@ -347,16 +350,17 @@ class BlenderSWCImporter:
         #***************************************************************************************************************
 
             #if both the point and root have not been added
-            if not self.swcPointDone[rootInd]:
+            if not self.swcPointDone[self.rootInds.index(rootInd)]:
 
                 self.addNewSection(pointVec, pointDiam, rootVec, rootDiam, pointInd, rootInd)
 
             #if the root point has already been added
             else:
-                rootPointIndices = self.blenderCircleIndsPerSWCPoint[rootInd - 1]
+                rootPointIndices = self.blenderCircleIndsPerSWCPoint[self.rootInds.index(rootInd)]
                 pointNormal = self.getNormDiffVector(rootVec, pointVec)
 
                 anglesWithRootNormals = [minAngle(pointNormal, self.normals[x]) for x in rootPointIndices]
+
                 minAngle = min(anglesWithRootNormals)
                 if minAngle > (PI / 4.0):
 
@@ -373,7 +377,6 @@ class BlenderSWCImporter:
                         refVecIP = -self.refVecsInPlane[indexOfRootPointToUse]
 
                     self.addPointsAndFaces(pointVec, pointDiam, pointNormal, indexOfRootPointToUse, refVecIP, pointInd)
-
     #*******************************************************************************************************************
 
     # def getSection(self, pointInd):
@@ -382,8 +385,8 @@ class BlenderSWCImporter:
     #     pointVec = (Vector(pointData[:3]) - self.originPoint) / self.scaleDownBy
     #     pointDiam = pointData[3] / self.scaleDownBy
     #
-    #     rootInd = int(pointData[4])
-    #     rootData = self.swcPointData[rootInd]
+    #     rootInd = int(self.rootInds.index(pointData[4]))
+    #     rootData = self.swcPointData[self.rootInds[rootInd]]
     #     rootVec = (Vector(rootData[:3]) - self.originPoint) / self.scaleDownBy
     #     rootDiam = rootData[3] / self.scaleDownBy
     #
@@ -408,7 +411,7 @@ class BlenderSWCImporter:
         for pointInd in self.swcPointData.keys():
 
             pointInd = int(pointInd)
-            if not self.swcPointData[pointInd][-1] == -1:
+            if self.swcPointData[pointInd][-1] > 0:
                 self.addSection(pointInd)
 
     #*******************************************************************************************************************
@@ -489,8 +492,10 @@ class BlenderSWCImporter:
         :return:
         """
 
+
         self.definePoints()
         self.drawWholeInBlender(col)
+
     #*******************************************************************************************************************
     #
     # def importSectionWiseSWC(self, col = [1, 0, 0]):
