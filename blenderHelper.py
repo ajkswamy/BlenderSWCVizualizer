@@ -28,7 +28,7 @@ class BlenderSWCImporter:
 
         swcPointData = {}
         extraCol = {}
-        rootInds = []
+
 
         with open(self.swcFName, 'r') as fle:
             line = fle.readline()
@@ -37,7 +37,6 @@ class BlenderSWCImporter:
                 if not line[0] == '#':
                     entries = line.split()
                     swcPointData[int(entries[0])] = [float(x) for x in entries[2:7]]
-                    rootInds.append(int(entries[0]))
 
                     if len(entries) > 7:
                         nCols = len(self.colMap)
@@ -45,7 +44,7 @@ class BlenderSWCImporter:
 
                 line = fle.readline()
 
-        return swcPointData, extraCol, rootInds
+        return swcPointData, extraCol
 
     #*******************************************************************************************************************
 
@@ -62,9 +61,14 @@ class BlenderSWCImporter:
         self.swcName = os.path.split(swcFName)[1].rstrip('.swc')
         self.colMap = colMap
 
+        self.isSSWC = False
+
         if swcData is None:
 
-            self.swcPointData, self.extraCol, self.rootInds = self.readSWC()
+            self.swcPointData, self.extraCol = self.readSWC()
+
+            if self.extraCol:
+                self.isSSWC = True
 
         else:
 
@@ -73,6 +77,7 @@ class BlenderSWCImporter:
                 self.swcPointData[int(swcLine[0])] = swcLine[2:7]
 
             if np.shape(swcData)[1] > 7:
+                self.isSSWC = True
                 nCols = len(self.colMap)
 
                 temp = [(max(min(int(swcLine[7]), nCols - 1), 0)) for swcLine in swcData]
@@ -81,7 +86,8 @@ class BlenderSWCImporter:
                 for ind, extraCol in zip(swcData[:, 0], temp):
                     self.extraCol[ind] = extraCol
 
-            self.rootInds = swcData[:, 0].tolist()
+
+
 
         # print(self.rootInds)
         self.nCirclePoints = 8
@@ -93,8 +99,9 @@ class BlenderSWCImporter:
             self.originPoint = Vector([0, 0, 0])
         self.scaleDownBy = float(100)
 
-        self.swcPointDone = [False] * len(self.swcPointData)
-        self.blenderCircleIndsPerSWCPoint = [[] for x in range(len(self.swcPointData))]
+        ks = self.swcPointData.keys()
+        self.swcPointDone = dict(zip(ks, [False for x in ks]))
+        self.blenderCircleIndsPerSWCPoint = dict(zip(ks,[[] for x in ks]))
 
         #For these, each entry corresponds to one set of circle added to blender.
 
@@ -203,9 +210,9 @@ class BlenderSWCImporter:
         :return:
         """
 
-        self.swcPointDone[self.rootInds.index(swcPointInd)] = True
+        self.swcPointDone[swcPointInd] = True
         self.vertIndexStartsPerPoint.append(self.nBlenderCircles * self.nCirclePoints)
-        self.blenderCircleIndsPerSWCPoint[self.rootInds.index(swcPointInd)].append(self.nBlenderCircles)
+        self.blenderCircleIndsPerSWCPoint[swcPointInd].append(self.nBlenderCircles)
         self.verts.extend(verts)
         self.normals.append(normal)
         self.refVecsInPlane.append(refVecInPlane)
@@ -258,7 +265,7 @@ class BlenderSWCImporter:
         secFaces = self.getFaceIndices(self.vertIndexStartsPerPoint[-2], self.vertIndexStartsPerPoint[-1])
         self.faces.extend(secFaces)
 
-        if len(self.extraCol):
+        if self.isSSWC:
             self.faceColInds.extend([self.extraCol[int(pointInd)]] * len(secFaces))
 
     #*******************************************************************************************************************
@@ -311,7 +318,7 @@ class BlenderSWCImporter:
 
         secFaces = self.getFaceIndices(self.vertIndexStartsPerPoint[indexOfRootPoint], self.vertIndexStartsPerPoint[-1])
         self.faces.extend(secFaces)
-        if len(self.extraCol):
+        if self.isSSWC:
             self.faceColInds.extend([self.extraCol[int(pointInd)]] * len(secFaces))
 
     #*******************************************************************************************************************
@@ -350,13 +357,13 @@ class BlenderSWCImporter:
         #***************************************************************************************************************
 
             #if both the point and root have not been added
-            if not self.swcPointDone[self.rootInds.index(rootInd)]:
+            if not self.swcPointDone[rootInd]:
 
                 self.addNewSection(pointVec, pointDiam, rootVec, rootDiam, pointInd, rootInd)
 
             #if the root point has already been added
             else:
-                rootPointIndices = self.blenderCircleIndsPerSWCPoint[self.rootInds.index(rootInd)]
+                rootPointIndices = self.blenderCircleIndsPerSWCPoint[rootInd]
                 pointNormal = self.getNormDiffVector(rootVec, pointVec)
 
                 anglesWithRootNormals = [minAngle(pointNormal, self.normals[x]) for x in rootPointIndices]
@@ -385,7 +392,7 @@ class BlenderSWCImporter:
     #     pointVec = (Vector(pointData[:3]) - self.originPoint) / self.scaleDownBy
     #     pointDiam = pointData[3] / self.scaleDownBy
     #
-    #     rootInd = int(self.rootInds.index(pointData[4]))
+    #     rootInd = int(self.rootInds[pointData[4]])
     #     rootData = self.swcPointData[self.rootInds[rootInd]]
     #     rootVec = (Vector(rootData[:3]) - self.originPoint) / self.scaleDownBy
     #     rootDiam = rootData[3] / self.scaleDownBy
@@ -402,7 +409,7 @@ class BlenderSWCImporter:
 
     #*******************************************************************************************************************
 
-    def definePoints(self):
+    def definePoints(self, col):
         """
         For each point of the swc file which is not the root, adds the circles and faces that define the 3D frustrum representing the section.
         :return:
@@ -413,6 +420,9 @@ class BlenderSWCImporter:
             pointInd = int(pointInd)
             if self.swcPointData[pointInd][-1] > 0:
                 self.addSection(pointInd)
+            # else:
+            #     self.addSphere(radius=1, position=self.swcPointData[pointInd][:3], col=col)
+
 
     #*******************************************************************************************************************
 
@@ -436,6 +446,7 @@ class BlenderSWCImporter:
             for col in self.colMap:
                 mat = bpy.data.materials.new(str(col))
                 mat.diffuse_color = col
+                # mat.diffuse_intensity = 1.0
                 nrn.data.materials.append(mat)
 
 
@@ -443,7 +454,10 @@ class BlenderSWCImporter:
         mesh.from_pydata(self.verts, [], self.faces)
         mesh.update(calc_edges=True)
 
-        if self.colMap is not None:
+        if self.isSSWC:
+
+            'Material index being initialized'
+
 
             nrnObj = bpy.context.scene.objects[self.swcName]
             for polygon, facColInd in zip(nrnObj.data.polygons, self.faceColInds):
@@ -479,7 +493,7 @@ class BlenderSWCImporter:
         :return:
         """
 
-        self.definePoints()
+        self.definePoints(col)
         self.drawWholeInBlender(col)
         bpy.ops.export_scene.obj(filepath=fileName)
     #*******************************************************************************************************************
@@ -493,7 +507,7 @@ class BlenderSWCImporter:
         """
 
 
-        self.definePoints()
+        self.definePoints(col)
         self.drawWholeInBlender(col)
 
     #*******************************************************************************************************************
@@ -517,6 +531,18 @@ class BlenderSWCImporter:
     #             self.drawSectionInBlender(pointInd, rtrned[0], rtrned[1], col)
     #
     # #*******************************************************************************************************************
+
+    def addSphere(self, radius=1, position=[0, 0, 0], col=[1, 0, 0]):
+
+        bpy.ops.mesh.primitive_uv_sphere_add(size=radius / self.scaleDownBy, location=np.array(position) / self.scaleDownBy)
+        sph = bpy.context.active_object
+
+
+        mat = bpy.data.materials.new("sphereMat")
+        mat.diffuse_color = col
+        mat.diffuse_intensity = 1.0
+        sph.active_material = mat
+
 #***********************************************************************************************************************
 
 
