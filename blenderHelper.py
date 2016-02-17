@@ -20,29 +20,33 @@ import numpy as np
 class BlenderSWCImporter:
 
     #*******************************************************************************************************************
-    def readSWC(self):
-        """
-        Read the data of all points in the swc file.
-        :return:
-        """
+
+    def parseSWCData(self, swcData):
+
+        nInitPts = int(max([x[0] for x in swcData]))
+        nExtra = 0
+        for ind in range(len(swcData)):
+            pt = swcData[ind]
+            pt[5] = max(pt[5], 0.5)
+            halfR = pt[5] * 0.5
+            if pt[6] < 0:
+                for ind1 in range(1, 3):
+                    toApp = [nInitPts + nExtra + ind1, pt[1], pt[2], pt[3], pt[4] + halfR, pt[5], pt[0]]
+                    if len(pt) > 7:
+                        toApp.append(pt[7])
+                    swcData.append(toApp)
+                nExtra += 2
+
+                swcData[ind][5] = max(0.5, swcData[ind][5])
 
         swcPointData = {}
         extraCol = {}
 
+        for entries in swcData:
+            swcPointData[int(entries[0])] = [float(x) for x in entries[2:7]]
 
-        with open(self.swcFName, 'r') as fle:
-            line = fle.readline()
-            while not line == '':
-
-                if not line[0] == '#':
-                    entries = line.split()
-                    swcPointData[int(entries[0])] = [float(x) for x in entries[2:7]]
-
-                    if len(entries) > 7:
-                        nCols = len(self.colMap)
-                        extraCol[int(entries[0])] = max(min(int(entries[7]), nCols - 1), 0)
-
-                line = fle.readline()
+            if len(entries) > 7:
+                extraCol[int(entries[0])] = float(entries[7])
 
         return swcPointData, extraCol
 
@@ -65,31 +69,21 @@ class BlenderSWCImporter:
 
         if swcData is None:
 
-            self.swcPointData, self.extraCol = self.readSWC()
+            swcData = np.loadtxt(swcFName).tolist()
 
-            if self.extraCol:
-                self.isSSWC = True
+        self.swcPointData, self.extraCol = self.parseSWCData(swcData)
 
-        else:
+        if self.extraCol:
+            self.isSSWC = True
 
-            self.swcPointData = {}
-            for swcLine in swcData:
-                self.swcPointData[int(swcLine[0])] = swcLine[2:7]
+            extraCols = np.array(list(self.extraCol.values()))
+            maxEC = extraCols.max()
+            minEC = extraCols.min()
 
-            if np.shape(swcData)[1] > 7:
-                self.isSSWC = True
-                nCols = len(self.colMap)
+            nCols = len(self.colMap)
+            for x, y in self.extraCol.items():
+                self.extraCol[x] = int((nCols - 1) * (y - minEC) / (maxEC - minEC))
 
-                temp = [(max(min(int(swcLine[7]), nCols - 1), 0)) for swcLine in swcData]
-
-                self.extraCol = {}
-                for ind, extraCol in zip(swcData[:, 0], temp):
-                    self.extraCol[ind] = extraCol
-
-
-
-
-        # print(self.rootInds)
         self.nCirclePoints = 8
         assert self.nCirclePoints % 2 == 0, 'No of points on the circle circumference has to be even'
 
@@ -406,9 +400,7 @@ class BlenderSWCImporter:
     #
     #         return self.getNewSection(pointVec, pointDiam, rootVec, rootDiam, pointInd, rootInd)
 
-
     #*******************************************************************************************************************
-
     def definePoints(self, col):
         """
         For each point of the swc file which is not the root, adds the circles and faces that define the 3D frustrum representing the section.
@@ -418,7 +410,7 @@ class BlenderSWCImporter:
         for pointInd in self.swcPointData.keys():
 
             pointInd = int(pointInd)
-            if self.swcPointData[pointInd][-1] > 0:
+            if self.swcPointData[pointInd][4] > 0:
                 self.addSection(pointInd)
             # else:
             #     self.addSphere(radius=1, position=self.swcPointData[pointInd][:3], col=col)
@@ -436,7 +428,7 @@ class BlenderSWCImporter:
         bpy.context.scene.objects.link(nrn)
 
 
-        if self.colMap is None:
+        if not self.isSSWC:
             mat = bpy.data.materials.new(self.swcName)
             mat.diffuse_color = col
             nrn.active_material = mat
@@ -446,7 +438,7 @@ class BlenderSWCImporter:
             for col in self.colMap:
                 mat = bpy.data.materials.new(str(col))
                 mat.diffuse_color = col
-                # mat.diffuse_intensity = 1.0
+                mat.diffuse_intensity = 1.0
                 nrn.data.materials.append(mat)
 
 
@@ -455,9 +447,6 @@ class BlenderSWCImporter:
         mesh.update(calc_edges=True)
 
         if self.isSSWC:
-
-            'Material index being initialized'
-
 
             nrnObj = bpy.context.scene.objects[self.swcName]
             for polygon, facColInd in zip(nrnObj.data.polygons, self.faceColInds):
@@ -505,7 +494,6 @@ class BlenderSWCImporter:
         :param col: RGB triplet defining the color of the neuron
         :return:
         """
-
 
         self.definePoints(col)
         self.drawWholeInBlender(col)

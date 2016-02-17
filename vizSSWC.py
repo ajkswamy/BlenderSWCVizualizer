@@ -27,7 +27,7 @@ if nPts % len(baseCols) > 0:
     raise(ValueError('nPts must be a integral multiple of ' + str(len(baseCols))))
 
 cols = np.zeros([nPts, 3])
-scaleFactor = int(nPts /len(baseCols))
+scaleFactor = int(nPts / len(baseCols))
 
 for ind in range(3):
     cols[:, ind] = np.interp(range(nPts), range(0, nPts, scaleFactor), baseCols[:, ind])
