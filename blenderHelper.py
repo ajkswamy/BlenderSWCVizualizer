@@ -21,13 +21,13 @@ class BlenderSWCImporter:
 
     #*******************************************************************************************************************
 
-    def parseSWCData(self, swcData):
+    def parseSWCData(self, swcData, restrictRadiusTo=0.5):
 
         nInitPts = int(max([x[0] for x in swcData]))
         nExtra = 0
         for ind in range(len(swcData)):
             pt = swcData[ind]
-            pt[5] = max(pt[5], 0.5)
+            pt[5] = max(pt[5], restrictRadiusTo)
             halfR = pt[5] * 0.5
             if pt[6] < 0:
                 for ind1 in range(1, 3):
@@ -37,7 +37,7 @@ class BlenderSWCImporter:
                     swcData.append(toApp)
                 nExtra += 2
 
-                swcData[ind][5] = max(0.5, swcData[ind][5])
+                swcData[ind][5] = max(restrictRadiusTo, swcData[ind][5])
 
         swcPointData = {}
         extraCol = {}
@@ -52,7 +52,8 @@ class BlenderSWCImporter:
 
     #*******************************************************************************************************************
 
-    def __init__(self, swcFName, add=False, matchRootOrigin=True, swcData=None, colMap=None):
+    def __init__(self, swcFName, add=False, matchRootOrigin=True, swcData=None,
+                 colMap=None, scaleDownBy=100, restrictRadiusTo=0.5):
 
         if not add == True:
             #Remove the default objects in the blender scene.
@@ -71,7 +72,10 @@ class BlenderSWCImporter:
 
             swcData = np.loadtxt(swcFName).tolist()
 
-        self.swcPointData, self.extraCol = self.parseSWCData(swcData)
+        elif type(swcData) == np.ndarray:
+            swcData = swcData.tolist()
+
+        self.swcPointData, self.extraCol = self.parseSWCData(swcData, restrictRadiusTo)
 
         if self.extraCol:
             self.isSSWC = True
@@ -91,7 +95,7 @@ class BlenderSWCImporter:
             self.originPoint = Vector(self.swcPointData[1][:3])
         else:
             self.originPoint = Vector([0, 0, 0])
-        self.scaleDownBy = float(100)
+        self.scaleDownBy = scaleDownBy
 
         ks = self.swcPointData.keys()
         self.swcPointDone = dict(zip(ks, [False for x in ks]))
