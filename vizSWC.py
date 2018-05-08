@@ -1,6 +1,5 @@
-#Ajayrama Kumaraswamy, 17.10.2014
 import sys
-sys.path.append('/home/ajay/repos/BlenderSWCVizualizer')
+sys.path.append('/home/aj/repos/BlenderSWCVizualizer')
 
 from blenderHelper import BlenderSWCImporter
 

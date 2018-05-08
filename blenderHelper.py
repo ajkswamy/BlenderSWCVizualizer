@@ -53,7 +53,7 @@ class BlenderSWCImporter:
     #*******************************************************************************************************************
 
     def __init__(self, swcFName, add=False, matchRootOrigin=True, swcData=None,
-                 colMap=None, scaleDownBy=100, restrictRadiusTo=0.5):
+                 sswcMaterials=None, scaleDownBy=100, restrictRadiusTo=0.5):
 
         if not add == True:
             #Remove the default objects in the blender scene.
@@ -64,7 +64,7 @@ class BlenderSWCImporter:
 
         self.swcFName = swcFName
         self.swcName = os.path.split(swcFName)[1].rstrip('.swc')
-        self.colMap = colMap
+        self.sswcMaterials = sswcMaterials
 
         self.isSSWC = False
 
@@ -84,9 +84,9 @@ class BlenderSWCImporter:
             maxEC = extraCols.max()
             minEC = extraCols.min()
 
-            nCols = len(self.colMap)
+            nMaterials = len(self.sswcMaterials)
             for x, y in self.extraCol.items():
-                self.extraCol[x] = int((nCols - 1) * (y - minEC) / (maxEC - minEC))
+                self.extraCol[x] = int((nMaterials - 1) * (y - minEC) / (maxEC - minEC))
 
         self.nCirclePoints = 8
         assert self.nCirclePoints % 2 == 0, 'No of points on the circle circumference has to be even'
@@ -439,16 +439,19 @@ class BlenderSWCImporter:
 
         else:
 
-            for col in self.colMap:
-                mat = bpy.data.materials.new(str(col))
-                mat.diffuse_color = col
-                mat.diffuse_intensity = 1.0
+            for mat in self.sswcMaterials:
+                # matNew = bpy.data.materials.new(mat.name)
+                # matNew.diffuse_color = mat.diffuse_color
+                # matNew.diffuse_intensity = mat.diffuse_color
+                # nrn.data.materials.append(matNew)
                 nrn.data.materials.append(mat)
 
 
 
         mesh.from_pydata(self.verts, [], self.faces)
         mesh.update(calc_edges=True)
+
+
 
         if self.isSSWC:
 
@@ -457,7 +460,7 @@ class BlenderSWCImporter:
 
                 polygon.material_index = facColInd
 
-
+        nrn.show_transparent = True
 
     #*******************************************************************************************************************
 
@@ -502,6 +505,7 @@ class BlenderSWCImporter:
         self.definePoints(col)
         self.drawWholeInBlender(col)
 
+
     #*******************************************************************************************************************
     #
     # def importSectionWiseSWC(self, col = [1, 0, 0]):
@@ -545,7 +549,7 @@ class BlenderSWCImporter:
     #mat.diffuse_color = (r,g,b)
     #object.active_material = mat
 
-def addVoxelized(fle, add=False, col=[1, 0, 0]):
+def addVoxelized(fle, voxelSize, add=False, col=[1, 0, 0]):
 
     scaleDownBy = float(100)
     nCubes = 1
@@ -560,7 +564,6 @@ def addVoxelized(fle, add=False, col=[1, 0, 0]):
 
 
     vData = np.loadtxt(fle)
-    assert np.shape(vData)[1] == 4
 
     mat = bpy.data.materials.new(fle)
     mat.diffuse_color = col
@@ -568,7 +571,9 @@ def addVoxelized(fle, add=False, col=[1, 0, 0]):
 
 
     for vPt in vData:
-        bpy.ops.mesh.primitive_cube_add(location=vPt[:3] / scaleDownBy, radius=vPt[3] / scaleDownBy)
+        pt = vPt[2:5]
+        ptCentered = voxelSize * np.round(pt / voxelSize)
+        bpy.ops.mesh.primitive_cube_add(location=ptCentered / scaleDownBy, radius=voxelSize / scaleDownBy)
         if nCubes == 1:
             bpy.data.objects['Cube'].active_material = mat
         else:

@@ -23,7 +23,7 @@ vizSWC.py: Used to visualize the model in the SWC file as it is.
 compareNrnsBlender.py: Used to vizualize multiple SWC files together.
 ---
 1. To use, specify the paths to the SWC files in the list 'swcs'.
-2. Specify the colors with which the neurons are to be colored in 'cols'. The neuron to color mapping in element wise one to one.
+2. Specify the colors with which the neurons are to be colored in 'cols'. The neuron to color mapping is element wise one to one.
 3. Change the string in sys.path.append('...') to the path which contains blenderHelper.py
 4. Then, in a terminal, enter "blender --python compareNrnsBlender.py"
 
@@ -32,8 +32,9 @@ vizSSWC.py: Used to vizualize the model in an SSWC file with possible coloring o
 1. An SSWC file contains an extra column in addition to the 7 in a normal SWC file. This extra column must contain only integers from 0 to 7.
 2. The array baseCols is a color map.
 3. If a segment has the value 3 in it's 8th column, then it will be coloured with the 4th color in the colormap in baseCols.
-4. To use, change the string in sys.path.append('...') to the path which contains blenderHelper.py
-5. Then in a terminal, enter "blender --python vizSSWC.py -- /path/to/SWC/file"
+4. Materials are internally created corresponding to each color in baseCols. The "emit" and transparency "alpha"s of these materials can also be specified using the arrays "emits" and "alphas" 
+5. To use, change the string in sys.path.append('...') to the path which contains blenderHelper.py
+6. Then in a terminal, enter "blender --python vizSSWC.py -- /path/to/SWC/file"
 
 vizSSWC_schematic.py: Similar to vizSSWC.py but with the radii of all the segments set to a single specified value.
 ----------
