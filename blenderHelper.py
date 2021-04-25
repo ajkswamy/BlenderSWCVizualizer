@@ -172,7 +172,7 @@ class BlenderSWCImporter:
             #shift and rotate refVec to bring it to Ref1
             refVec.normalize()
             refVecShifted = refVec
-            newRefVec = rotationMatrix.inverted() * refVecShifted
+            newRefVec = rotationMatrix.inverted() @ refVecShifted
 
             #nearest point on the r=1 circle is the projection of newRefVec on XY plane(just set z=0)
             #thetaAdditional is just angle between newRefVec with (1,0,0)
@@ -192,7 +192,7 @@ class BlenderSWCImporter:
         circlePointsRotated = [Vector([r * cos(theta + thetaAdditional), r * sin(theta + thetaAdditional), 0])
                                for theta in thetas]
 
-        circlePoints = [pointVec + rotationMatrix * x for x in circlePointsRotated]
+        circlePoints = [pointVec + rotationMatrix @ x for x in circlePointsRotated]
 
         return circlePoints, circlePoints[0] - pointVec
 
@@ -429,7 +429,7 @@ class BlenderSWCImporter:
         """
         mesh = bpy.data.meshes.new(self.swcName)
         nrn = bpy.data.objects.new(self.swcName, mesh)
-        bpy.context.scene.objects.link(nrn)
+        bpy.context.collection.objects.link(nrn)
 
 
         if not self.isSSWC:
